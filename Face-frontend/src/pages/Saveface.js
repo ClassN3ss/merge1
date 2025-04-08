@@ -13,28 +13,33 @@ const Saveface = () => {
   const [message, setMessage] = useState("📷 หันหน้าตรง แล้วกด 'บันทึกใบหน้า'");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!user) return navigate("/login");
-    if (user.role !== "student") return navigate("/");
-    if (user.faceScanned) return navigate("/student-dashboard");
-  }, [user, navigate]);
-
-  const stopCamera = () => {
-    const stream = videoRef.current?.srcObject;
+  const stopCameraInstant = () => {
+    const video = videoRef.current;
+    const stream = video?.srcObject;
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
-      videoRef.current.srcObject = null;
+      video.pause();
+      video.srcObject = null;
+      video.removeAttribute("srcObject");
     }
   };
 
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (videoRef.current) videoRef.current.srcObject = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current.play().catch((err) => {
+            console.warn("🎥 play() error:", err);
+          });
+        };
+      }
     } catch {
       setMessage("❌ โปรดอนุญาตให้ใช้กล้อง");
     }
   };
+  
 
   const loadModels = useCallback(async () => {
     try {
@@ -45,17 +50,20 @@ const Saveface = () => {
         faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
       ]);
       setMessage("📷 พร้อมแล้ว! หันหน้าตรง แล้วกดปุ่ม");
-      startCamera();
+      await startCamera();
     } catch {
       setMessage("❌ โหลดโมเดลไม่สำเร็จ");
     }
   }, []);
 
   useEffect(() => {
-    if (!user || user.role !== "student" || user.faceScanned) return;
+    if (!user) return navigate("/login");
+    if (user.role !== "student") return navigate("/");
+    if (user.faceScanned) return navigate("/student-dashboard");
     loadModels();
-    return () => stopCamera();
-  }, [user, loadModels]);
+
+    return () => stopCameraInstant();
+  }, [user, navigate, loadModels]);
 
   const captureFace = async () => {
     setLoading(true);
@@ -76,11 +84,10 @@ const Saveface = () => {
     const token = localStorage.getItem("token");
 
     if (!token) {
+      stopCameraInstant();
       alert("⚠️ กรุณาเข้าสู่ระบบใหม่");
       localStorage.clear();
-      stopCamera();
-      navigate("/login");
-      return;
+      return navigate("/login");
     }
 
     try {
@@ -96,11 +103,10 @@ const Saveface = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "❌ บันทึกใบหน้าไม่สำเร็จ");
 
+      stopCameraInstant();
       alert("✅ บันทึกใบหน้าสำเร็จ!");
       user.faceScanned = true;
       login(user, token);
-
-      stopCamera();
       navigate("/student-dashboard");
     } catch (err) {
       setMessage("❌ บันทึกใบหน้าไม่สำเร็จ");
@@ -131,7 +137,7 @@ const Saveface = () => {
           {loading && <span className="spinner-border spinner-border-sm" role="status" />}
           {loading ? "กำลังบันทึก..." : "📥 บันทึกใบหน้า"}
         </button>
-        <button className="btn btn-secondary" onClick={() => { stopCamera(); navigate(-1); }}>
+        <button className="btn btn-secondary" onClick={() => { stopCameraInstant(); navigate(-1); }}>
           🔙 กลับ
         </button>
       </div>

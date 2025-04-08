@@ -17,18 +17,22 @@ const ClassHistoryDetail = () => {
     const fetchAttendance = async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await API.get(`/attendance/class/${classId}`, {
+        const res = await API.get(`/attendance/class-row/${classId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const data = res.data || [];
+
+        const data = Array.isArray(res.data) ? res.data : [];
         setAttendances(data);
         setFiltered(data);
       } catch (err) {
         console.error("❌ โหลดข้อมูลล้มเหลว:", err);
+        setAttendances([]);
+        setFiltered([]);
       } finally {
         setLoading(false);
       }
     };
+
     if (classId) fetchAttendance();
   }, [classId]);
 
@@ -38,16 +42,16 @@ const ClassHistoryDetail = () => {
 
     if (!val) return setFiltered(attendances);
 
-    const matchDate = (scanTime) => {
-      const d = new Date(scanTime);
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      return `${yyyy}-${mm}-${dd}` === val;
-    };
+    const filteredByDate = attendances.filter((rec) => {
+      const scanDate = new Date(rec.scan_time);
+      const yyyy = scanDate.getFullYear();
+      const mm = String(scanDate.getMonth() + 1).padStart(2, "0");
+      const dd = String(scanDate.getDate()).padStart(2, "0");
+      const scanDateStr = `${yyyy}-${mm}-${dd}`;
+      return scanDateStr === val;
+    });
 
-    const result = attendances.filter((rec) => matchDate(rec.scan_time));
-    setFiltered(result);
+    setFiltered(filteredByDate);
   };
 
   return (
@@ -68,7 +72,7 @@ const ClassHistoryDetail = () => {
 
       {loading ? (
         <p>⏳ กำลังโหลด...</p>
-      ) : filtered.length === 0 ? (
+      ) : Array.isArray(filtered) && filtered.length === 0 ? (
         <p className="text-muted">❗ ยังไม่มีการเช็คชื่อ</p>
       ) : (
         <table className="table table-bordered mt-3">
@@ -97,9 +101,7 @@ const ClassHistoryDetail = () => {
                   <td>{new Date(rec.scan_time).toLocaleDateString("th-TH")}</td>
                   <td>{new Date(rec.scan_time).toLocaleTimeString()}</td>
                   <td>
-                    <span className={`badge bg-${statusClass}`}>
-                      {rec.status}
-                    </span>
+                    <span className={`badge bg-${statusClass}`}>{rec.status}</span>
                   </td>
                 </tr>
               );

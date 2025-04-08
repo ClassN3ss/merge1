@@ -20,16 +20,18 @@ import VerifyfaceTeacher from "./pages/VerifyfaceTeacher";
 import ClassHistoryList from "./pages/ClassHistoryList";
 import ClassHistoryDetail from "./pages/ClassHistoryDetail";
 import ManageListPage from "./pages/ManageListPage";
+import NewRegister from "./pages/NewRegister";
 
 function App() {
   return (
     <AuthProvider>
       <Router>
-        <Navbar /> {/* ✅ แสดงบนทุกหน้า */}
+        <Navbar />
         <Routes>
           <Route path="/" element={<Navigate to="/login" />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/new-register" element={<NewRegister />} />
           <Route path="/save-face" element={
               <ProtectedRoute role="student"><Saveface /></ProtectedRoute>
           } />

@@ -14,38 +14,42 @@ const AttendanceHistory = () => {
   const user = JSON.parse(localStorage.getItem("user"));
 
   useEffect(() => {
-    const fetchHistory = async () => {
+    const fetchHistoryAndEnrolls = async () => {
       try {
-        const res = await API.get(
-          `/attendance/history/${user.studentId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        setHistory(res.data.history);
-        generateCourseOptions(res.data.history);
+        const [historyRes, enrollsRes] = await Promise.all([
+          API.get(`/attendance/history/${user.studentId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          API.get(`/enrolls/enrolled/${user._id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+        const history = historyRes.data.history || [];
+        const enrolls = enrollsRes.data.enrolled || []; // ✅ FIX
+
+        setHistory(history);
+
+        const options = enrolls
+          .filter(e => e.courseCode && e.courseName && e.section)
+          .map(e => {
+            return `${e.classId}|${e.courseCode} - ${e.courseName} (Sec ${e.section})`;
+          });
+
+
+        setCourseOptions(options);
       } catch (err) {
         console.error("❌ ดึงข้อมูลไม่สำเร็จ", err);
       }
     };
 
-    if (user?.studentId) fetchHistory();
-  }, [user.studentId, token]);
-
-  const generateCourseOptions = (data) => {
-    const unique = Array.from(
-      new Set(
-        data.map(
-          (h) => h.classId && `${h.classId._id}|${h.classId.courseCode} - ${h.classId.courseName} (Sec ${h.classId.section})`
-        )
-      )
-    ).filter(Boolean);
-    setCourseOptions(unique);
-  };
+    if (user?.studentId && user?._id) fetchHistoryAndEnrolls();
+  }, [user.studentId, user?._id, token]);
 
   useEffect(() => {
     const filtered = history.filter((h) => {
-      const matchCourse =
-        !selectedCourse || h.classId?._id === selectedCourse;
-      
+      const matchCourse = !selectedCourse || h.classId?._id === selectedCourse;
+
       const formatDate = (d) => {
         const date = new Date(d);
         const year = date.getFullYear();
@@ -53,9 +57,9 @@ const AttendanceHistory = () => {
         const day = (`0${date.getDate()}`).slice(-2);
         return `${year}-${month}-${day}`;
       };
-      
+
       const matchDate = !selectedDate || formatDate(h.scan_time) === selectedDate;
-        
+
       return matchCourse && matchDate;
     });
     setFilteredHistory(filtered);
@@ -115,8 +119,8 @@ const AttendanceHistory = () => {
                 h.status === "Present"
                   ? "status-present"
                   : h.status === "Late"
-                  ? "status-late"
-                  : "status-absent"
+                    ? "status-late"
+                    : "status-absent"
               }>
                 {h.status}
               </td>
@@ -133,7 +137,6 @@ const AttendanceHistory = () => {
             </tr>
           )}
         </tbody>
-
       </table>
     </div>
   );

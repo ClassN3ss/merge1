@@ -23,17 +23,21 @@ const SavefaceTeacher = () => {
     const stream = videoRef.current?.srcObject;
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
-    }
-    if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
   };
-  
 
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      videoRef.current.srcObject = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current.play().catch(err => {
+            console.warn("🔁 play() interrupted:", err);
+          });
+        };
+      }
     } catch (err) {
       console.error("❌ เปิดกล้องไม่สำเร็จ:", err);
       setMessage("❌ โปรดอนุญาตให้ใช้กล้อง");
@@ -81,6 +85,7 @@ const SavefaceTeacher = () => {
     const token = localStorage.getItem("token");
 
     if (!token) {
+      stopCamera();
       alert("⚠️ กรุณา login ใหม่อีกครั้ง");
       localStorage.clear();
       navigate("/login");
@@ -100,11 +105,12 @@ const SavefaceTeacher = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "❌ บันทึกใบหน้าไม่สำเร็จ");
 
+      stopCamera();
+
       alert("✅ บันทึกใบหน้าสำเร็จ!");
       user.faceScanned = true;
       login(user, token);
       navigate("/teacher-dashboard");
-      stopCamera();
     } catch (err) {
       console.error("❌ อัปโหลดใบหน้าไม่สำเร็จ", err);
       setMessage("❌ บันทึกใบหน้าไม่สำเร็จ");
@@ -134,7 +140,10 @@ const SavefaceTeacher = () => {
         <button className="btn btn-success" onClick={captureFace} disabled={loading}>
           {loading ? "กำลังบันทึก..." : "📥 บันทึกใบหน้า"}
         </button>
-        <button className="btn btn-secondary" onClick={() => { stopCamera(); navigate(-1); }}>
+        <button className="btn btn-secondary" onClick={() => {
+          stopCamera();
+          navigate(-1);
+        }}>
           🔙 กลับ
         </button>
       </div>

@@ -7,7 +7,6 @@ import API from "../services/api";
 
 const Scanface = () => {
   const videoRef = useRef(null);
-  const canvasRef = useRef(null);
   const navigate = useNavigate();
   const { classId } = useParams();
 
@@ -18,8 +17,9 @@ const Scanface = () => {
 
   const stopCamera = () => {
     const video = videoRef.current;
-    if (video && video.srcObject) {
-      video.srcObject.getTracks().forEach((track) => track.stop());
+    const stream = video?.srcObject;
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
       video.srcObject = null;
     }
   };
@@ -29,6 +29,9 @@ const Scanface = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current.play().catch(err => console.warn("play() interrupted", err));
+        };
       }
     } catch {
       setMessage("❌ โปรดอนุญาตให้เว็บไซต์ใช้กล้องของคุณ");
@@ -44,33 +47,11 @@ const Scanface = () => {
         faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
       ]);
       setMessage("📷 กล้องพร้อมแล้ว! กดปุ่มเพื่อเริ่มสแกน");
-      startCamera();
+      await startCamera();
     } catch {
       setMessage("❌ โหลดโมเดลไม่สำเร็จ");
     }
   }, []);
-
-  const drawDetections = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current) return;
-
-    await faceapi
-      .detectAllFaces(videoRef.current, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
-      .withFaceLandmarks();
-
-    const canvas = canvasRef.current;
-    canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
-
-    requestAnimationFrame(drawDetections);
-  }, []);
-
-  useEffect(() => {
-    loadModels();
-    return () => stopCamera();
-  }, [loadModels]);
-
-  useEffect(() => {
-    if (videoReady) drawDetections();
-  }, [videoReady, drawDetections]);
 
   const fetchSession = useCallback(async () => {
     try {
@@ -85,18 +66,19 @@ const Scanface = () => {
   }, [classId]);
 
   useEffect(() => {
+    loadModels();
     fetchSession();
-  }, [fetchSession]);
+    return () => stopCamera();
+  }, [loadModels, fetchSession]);
 
   const getGPSLocation = () =>
     new Promise((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(
-        (pos) =>
-          resolve({
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-          }),
-        () => reject("❌ เข้าถึง GPS ไม่สำเร็จ")
+        (pos) => resolve({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        }),
+        () => reject(new Error("❌ เข้าถึง GPS ไม่สำเร็จ"))
       );
     });
 
@@ -122,37 +104,31 @@ const Scanface = () => {
     alert("📣 สแกนใบหน้าอาจารย์เพื่อยืนยันตัวตนก่อนเช็คชื่อ");
     localStorage.setItem("studentDescriptor", JSON.stringify(payload));
     stopCamera();
-    setTimeout(() => {
-      navigate(`/verifyface-teacher/${classId}`, { replace: true });
-    }, 200);
+    navigate(`/verifyface-teacher/${classId}`, { replace: true });
   };
 
   const scanFace = async () => {
-    if (!videoRef.current || !videoReady) {
-      return setMessage("📷 รอกล้องโหลดให้เสร็จก่อน...");
-    }
-    if (!session) {
-      return setMessage("❌ ไม่พบ session ที่เชื่อมกับห้องนี้");
-    }
+    if (!videoReady) return setMessage("📷 รอกล้องโหลดให้เสร็จก่อน...");
+    if (!session) return setMessage("❌ ไม่พบ session ที่เชื่อมกับห้องนี้");
 
     setLoading(true);
     setMessage("🔎 กำลังตรวจจับใบหน้า...");
 
-    const detections = await faceapi
-      .detectAllFaces(videoRef.current, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
-      .withFaceLandmarks()
-      .withFaceDescriptors();
-
-    if (!detections.length) {
-      setMessage("❌ ไม่พบใบหน้า กรุณาลองใหม่");
-      setLoading(false);
-      return;
-    }
-
-    const descriptorArray = Array.from(detections[0].descriptor);
-    const token = localStorage.getItem("token");
-
     try {
+      const detections = await faceapi
+        .detectAllFaces(videoRef.current, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+        .withFaceLandmarks()
+        .withFaceDescriptors();
+
+      if (!detections.length) {
+        setMessage("❌ ไม่พบใบหน้า กรุณาลองใหม่");
+        setLoading(false);
+        return;
+      }
+
+      const descriptorArray = Array.from(detections[0].descriptor);
+      const token = localStorage.getItem("token");
+
       const { latitude, longitude } = await getGPSLocation();
 
       const findRes = await fetch("http://localhost:5000/auth/upload-face", {

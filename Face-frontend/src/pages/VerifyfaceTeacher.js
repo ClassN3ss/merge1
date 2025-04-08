@@ -24,7 +24,9 @@ const VerifyfaceTeacher = () => {
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (videoRef.current) videoRef.current.srcObject = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
     } catch (error) {
       console.error("❌ กล้องไม่พร้อม:", error);
       setMessage("❌ โปรดอนุญาตให้ใช้กล้อง");
@@ -39,8 +41,8 @@ const VerifyfaceTeacher = () => {
         faceapi.nets.faceLandmark68Net.loadFromUri("/models"),
         faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
       ]);
-      setMessage("📷 พร้อมแล้ว! หันหน้าตรง แล้วกดปุ่ม");
-      startCamera();
+      setMessage("📷 กล้องพร้อมแล้ว! หันหน้าตรง แล้วกดปุ่ม");
+      await startCamera();
     } catch (error) {
       console.error("❌ โหลดโมเดลล้มเหลว:", error);
       setMessage("❌ โหลดโมเดลไม่สำเร็จ");
@@ -49,11 +51,13 @@ const VerifyfaceTeacher = () => {
 
   useEffect(() => {
     loadModels();
-    return () => stopCamera(); // ✅ ปิดกล้องทันทีเมื่อออกจากหน้านี้
+    return () => stopCamera();
   }, [loadModels]);
 
   const scanFace = async () => {
-    if (!videoRef.current || !videoReady) return setMessage("📷 กล้องยังไม่พร้อม");
+    if (!videoRef.current || !videoReady) {
+      return setMessage("📷 กล้องยังไม่พร้อม");
+    }
 
     setLoading(true);
     setMessage("🔎 กำลังตรวจสอบใบหน้า...");
@@ -66,6 +70,7 @@ const VerifyfaceTeacher = () => {
 
       if (!detections.length) {
         setMessage("❌ ไม่พบใบหน้า ลองใหม่อีกครั้ง");
+        setLoading(false);
         return;
       }
 
@@ -143,7 +148,7 @@ const VerifyfaceTeacher = () => {
         <button
           className="btn btn-secondary"
           onClick={() => {
-            stopCamera(); // ✅ ปิดกล้องก่อนกลับ
+            stopCamera();
             navigate(-1);
           }}
         >

@@ -32,12 +32,16 @@ const StudentDashboard = () => {
         ]);
 
         const pending = reqRes.data;
-        const enrolled = approvedEnrollRes.data;
+        const enrolled = approvedEnrollRes.data.enrolled || []; // ✅ FIXED HERE
         const allClasses = myClassesRes.data;
 
         setAllClasses(allClasses);
         setPendingRequests(pending);
-        setEnrolledClassIds(enrolled.map(e => (e.classId._id || e.classId).toString()));
+        setEnrolledClassIds(
+          enrolled
+            .filter(e => e.classId)
+            .map(e => (e.classId._id || e.classId).toString())
+        );
       } catch (err) {
         console.error("❌ โหลดข้อมูลไม่สำเร็จ", err);
       }
@@ -63,7 +67,16 @@ const StudentDashboard = () => {
     try {
       await API.post("/enrollments", { student: user._id, classId });
       alert("✅ ส่งคำร้องแล้ว");
-      setPendingRequests((prev) => [...prev, { classId }]);
+
+      const [reqRes, searchRes] = await Promise.all([
+        API.get(`/enrollments/requests/${user._id}`),
+        searchTerm.trim().length > 1
+          ? API.get(`/search/classes?q=${searchTerm.trim()}`)
+          : Promise.resolve({ data: [] })
+      ]);
+
+      setPendingRequests(reqRes.data);
+      setSearchResults(searchRes.data);
     } catch (err) {
       alert("❌ ส่งคำร้องไม่สำเร็จ");
       console.error(err);
@@ -72,7 +85,7 @@ const StudentDashboard = () => {
 
   const hasRequested = (clsId) =>
     pendingRequests.some((r) => {
-      const id = typeof r.classId === "object" ? r.classId._id : r.classId;
+      const id = r.classId?._id || r.classId;
       return id === clsId;
     });
 
@@ -83,9 +96,8 @@ const StudentDashboard = () => {
   const notJoinedClasses = allClasses.filter(cls => {
     const id = cls._id.toString();
     const isEnrolled = enrolledClassIds.includes(id);
-    const isRequested = hasRequested(id);
     const isInList = cls.students?.some(s => (s._id || s).toString() === user._id);
-    return !isEnrolled && isInList && !isRequested;
+    return !isEnrolled && isInList;
   });
 
   const renderClassItem = (cls, showJoinButton = true, showEnterButton = true) => (

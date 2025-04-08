@@ -17,6 +17,7 @@ const Register = () => {
     e.preventDefault();
     setLoading(true);
     setError("");
+
     try {
       const res = await axios.post("http://localhost:5000/auth/register", {
         studentId,
@@ -25,6 +26,17 @@ const Register = () => {
       setGeneratedCredentials(res.data);
     } catch (error) {
       const msg = error.response?.data?.message || "❌ ลงทะเบียนไม่สำเร็จ";
+
+      if (msg.includes("ไม่ตรงกับระบบ")) {
+        const confirm = window.confirm(
+          "❗ ไม่พบชื่อของคุณในระบบ ต้องการลงทะเบียนใหม่หรือไม่?"
+        );
+        if (confirm) {
+          navigate("/new-register", { state: { studentId, fullName } });
+        }
+        return;
+      }
+
       setError(msg);
     } finally {
       setLoading(false);

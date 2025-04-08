@@ -13,14 +13,23 @@ export default function RequestTable() {
     }
   };
 
-  const handleAction = async (id, status) => {
+  const handleApprove = async (id, status) => {
     try {
-      await API.patch("/enrollments/approve", { id, status });
+      await API.put(`/enrollments/approve/${id}`, { status });
       fetchRequests();
     } catch (err) {
       console.error("❌ ดำเนินการไม่สำเร็จ:", err);
     }
   };
+
+  const handleReject = async (id) => {
+    try {
+      await API.delete(`/enrollments/${id}`);
+      fetchRequests();
+    } catch (err) {
+      console.error("❌ ปฏิเสธไม่สำเร็จ:", err);
+    }
+  };  
 
   useEffect(() => { fetchRequests(); }, []);
 
@@ -38,8 +47,8 @@ export default function RequestTable() {
               <td>{req.course?.courseName}</td>
               <td>{req.course?.section}</td>
               <td>
-                <button onClick={() => handleAction(req._id, 'approved')} className="btn btn-success btn-sm">✅</button>
-                <button onClick={() => handleAction(req._id, 'rejected')} className="btn btn-danger btn-sm ms-1">❌</button>
+                <button onClick={() => handleApprove(req._id, 'approved')} className="btn btn-success btn-sm">✅</button>
+                <button onClick={() => handleReject(req._id, 'rejected')} className="btn btn-danger btn-sm ms-1">❌</button>
               </td>
             </tr>
           ))}

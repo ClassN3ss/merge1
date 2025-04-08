@@ -10,40 +10,46 @@ const ClassHistoryList = () => {
   const [selectedDate, setSelectedDate] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const courseOptions = Array.from(
-    new Map(classes.map((c) => [c.courseCode, `${c.courseCode} - ${c.courseName}`])).entries()
-  );
-
-  const sectionOptions = classes
-    .filter((c) => c.courseCode === selectedCourse)
-    .map((c) => ({ id: c._id, label: `ตอน ${c.section}` }));
+  const token = localStorage.getItem("token");
 
   useEffect(() => {
     const fetchMyClasses = async () => {
       try {
-        const token = localStorage.getItem("token");
         const res = await API.get("/classes/teacher", {
           headers: { Authorization: `Bearer ${token}` },
         });
-        setClasses(res.data);
+        setClasses(res.data || []);
       } catch (err) {
-        console.error("❌ ดึงคลาสของฉันล้มเหลว:", err);
+        console.error("❌ ดึงคลาสของอาจารย์ล้มเหลว:", err);
       }
     };
     fetchMyClasses();
-  }, []);
+  }, [token]);
+
+  const courseOptions = Array.from(
+    new Set(classes.map((c) => c.courseCode))
+  ).map((code) => ({
+    code,
+    label: `${code} - ${classes.find((c) => c.courseCode === code)?.courseName || ""}`,
+  }));
+
+  const sectionOptions = classes
+    .filter((c) => c.courseCode === selectedCourse)
+    .map((c) => ({
+      id: c._id,
+      label: `ตอน ${c.section}`,
+    }));
 
   useEffect(() => {
     const fetchAttendance = async () => {
       if (!selectedSection) return setFiltered([]);
       setLoading(true);
       try {
-        const token = localStorage.getItem("token");
-        const res = await API.get(`/attendance/class/${selectedSection}`, {
+        const res = await API.get(`/attendance/class-row/${selectedSection}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        let data = res.data || [];
+        let data = Array.isArray(res.data) ? res.data : [];
 
         if (selectedDate) {
           const filterDate = new Date(selectedDate).toLocaleDateString("th-TH", {
@@ -65,12 +71,13 @@ const ClassHistoryList = () => {
         setFiltered(data);
       } catch (err) {
         console.error("❌ โหลดข้อมูลเช็คชื่อไม่สำเร็จ:", err);
+        setFiltered([]);
       } finally {
         setLoading(false);
       }
     };
     fetchAttendance();
-  }, [selectedSection, selectedDate]);
+  }, [selectedSection, selectedDate, token]);
 
   return (
     <div className="container mt-4">
@@ -89,9 +96,9 @@ const ClassHistoryList = () => {
             }}
           >
             <option value="">-- เลือกวิชา --</option>
-            {courseOptions.map(([code, label]) => (
-              <option key={code} value={code}>
-                {label}
+            {courseOptions.map((opt) => (
+              <option key={opt.code} value={opt.code}>
+                {opt.label}
               </option>
             ))}
           </select>
@@ -130,49 +137,52 @@ const ClassHistoryList = () => {
       ) : filtered.length === 0 ? (
         <p className="text-muted">❗ ไม่พบข้อมูล</p>
       ) : (
-        <table className="table table-bordered">
-          <thead>
-            <tr>
-              <th>ชื่อ</th>
-              <th>รหัส</th>
-              <th>วันที่</th>
-              <th>เวลา</th>
-              <th>สถานะ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((rec, i) => (
-              <tr
-                key={i}
-                className={`table-${
-                  rec.status === "Present"
-                    ? "success"
-                    : rec.status === "Late"
-                    ? "warning"
-                    : "danger"
-                }`}
-              >
-                <td>{rec.fullName}</td>
-                <td>{rec.studentId}</td>
-                <td>{new Date(rec.scan_time).toLocaleDateString("th-TH")}</td>
-                <td>{new Date(rec.scan_time).toLocaleTimeString()}</td>
-                <td>
-                  <span
-                    className={`badge bg-${
-                      rec.status === "Present"
-                        ? "success"
-                        : rec.status === "Late"
-                        ? "warning"
-                        : "danger"
-                    }`}
-                  >
-                    {rec.status}
-                  </span>
-                </td>
+        <>
+          <table className="table table-bordered">
+            <thead>
+              <tr>
+                <th>ชื่อ</th>
+                <th>รหัส</th>
+                <th>วันที่</th>
+                <th>เวลา</th>
+                <th>สถานะ</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filtered.map((rec, i) => (
+                <tr
+                  key={i}
+                  className={`table-${
+                    rec.status === "Present"
+                      ? "success"
+                      : rec.status === "Late"
+                      ? "warning"
+                      : "danger"
+                  }`}
+                >
+                  <td>{rec.fullName}</td>
+                  <td>{rec.studentId}</td>
+                  <td>{new Date(rec.scan_time).toLocaleDateString("th-TH")}</td>
+                  <td>{new Date(rec.scan_time).toLocaleTimeString()}</td>
+                  <td>
+                    <span
+                      className={`badge bg-${
+                        rec.status === "Present"
+                          ? "success"
+                          : rec.status === "Late"
+                          ? "warning"
+                          : "danger"
+                      }`}
+                    >
+                      {rec.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          
+        </>
       )}
     </div>
   );
