@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const Enroll = require("../models/Enroll");
 const Class = require("../models/Class");
+const Attendance = require("../models/Attendance");
 
 // ✅ GET /users - โหลดผู้ใช้ทั้งหมด พร้อมข้อมูลคลาส (student/teacher)
 exports.getAllUsers = async (req, res) => {
@@ -98,6 +99,9 @@ exports.deleteUser = async (req, res) => {
   try {
     const deleted = await User.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ message: 'ไม่พบผู้ใช้' });
+
+    await Enroll.deleteMany({ student: req.params.id });
+    await Attendance.deleteMany({ studentId: deleted.studentId });
 
     res.json({ message: '✅ ลบผู้ใช้แล้ว' });
   } catch (err) {

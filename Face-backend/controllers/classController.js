@@ -2,6 +2,9 @@ const xlsx = require("xlsx");
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const Class = require("../models/Class");
+const Enroll = require("../models/Enroll");
+const Attendance = require("../models/Attendance");
+const FaceScanLog = require("../models/FaceScanLog");
 const multer = require("multer");
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -58,7 +61,7 @@ async function createClassFromXlsx(buffer, email, section) {
   const courseParts = courseRow[0].split(/\s+/);
   const courseCode = courseParts[1];
   let courseName = courseParts.slice(2).join(" ");
-  courseName = removeSectionFromCourseName(courseName); // 💥 ตัดคำว่า "ตอน 1" ออก
+  courseName = removeSectionFromCourseName(courseName);
 
   const sectionStr = String(section || "1");
   const teacherName = cleanName(teacherRow[5]);
@@ -168,7 +171,13 @@ exports.deleteClass = async (req, res) => {
   try {
     const deleted = await Class.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ message: "❌ ไม่พบคลาส" });
-    res.json({ message: "✅ ลบคลาสแล้ว" });
+
+    // ✅ เพิ่มตรงนี้: ลบ Enroll ที่ชี้มาคลาสนี้
+    await Enroll.deleteMany({ classId: req.params.id });
+    await Attendance.deleteMany({ classId: req.params.id });
+    await FaceScanLog.deleteMany({ classId: req.params.id });
+
+    res.json({ message: "✅ ลบคลาสแล้ว และลบการลงทะเบียนของคลาสนี้เรียบร้อย" });
   } catch (err) {
     res.status(500).json({ message: "❌ ลบคลาสล้มเหลว", error: err.message });
   }
